@@ -27,12 +27,24 @@
 #include "stm32l475e_iot01_hsensor.h"
 #include "stm32l475e_iot01_psensor.h"
 #include "stm32l475e_iot01_tsensor.h"
-//#include "stm32l4s5i_iot01_hsensor.h"
-//#include "stm32l4s5i_iot01_psensor.h"
-//#include "stm32l4s5i_iot01_tsensor.h"
+#include "stm32l475e_iot01_magneto.h"
+#include "stm32l475e_iot01_accelero.h"
+
+//#include "stm32l475e_iot01.h"
+//#include "stm32l4xx_hal_conf.h"
+//#include "stm32l4xx_it.h"
+
 #include "hsensor.h"
 #include "psensor.h"
 #include "tsensor.h"
+
+#include "hts221.h"
+#include "lps22hb.h"
+#include "lis3mdl.h"
+#include "lsm6dsl.h"
+
+
+
 
 /* USER CODE END Includes */
 
@@ -105,6 +117,16 @@ int main(void)
   MX_I2C2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  BSP_HSENSOR_Init();
+  BSP_PSENSOR_Init();
+  BSP_MAGNETO_Init();
+  BSP_ACCELERO_Init();
+
+  float humidity, pressure;
+  int16_t magneto;//&magneto is Pointer on 3 magnetometer values table with magneto[0] = X axis, magneto[1] = Y axis, magneto[2] = Z axis
+
+  int16_t accelero;//&accelero Pointer on 3 angular accelerations table with accelero[0] = X axis, accelero[1] = Y axis, accelero[2] = Z axis
+
 
   /* USER CODE END 2 */
 
@@ -115,6 +137,14 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+
+	  humidity = BSP_HSENSOR_ReadHumidity();
+	  pressure = BSP_PSENSOR_ReadPressure();
+	  BSP_MAGNETO_GetXYZ(&magneto);
+	  BSP_ACCELERO_AccGetXYZ(&accelero);
+	  HAL_Delay(100);//100ms to sample at rate of 10Hz
+
   }
   /* USER CODE END 3 */
 }

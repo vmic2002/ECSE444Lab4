@@ -1,4 +1,5 @@
-Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
+Core/Src/stm32l475e_iot01.o: ../Core/Src/stm32l475e_iot01.c \
+ ../Core/Inc/stm32l475e_iot01.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h \
  ../Core/Inc/stm32l4xx_hal_conf.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rcc.h \
@@ -26,18 +27,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_pwr.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_pwr_ex.h \
  ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart.h \
- ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h \
- ../Core/Inc/stm32l475e_iot01_hsensor.h ../Core/Inc/stm32l475e_iot01.h \
- ../Core/Inc/hts221.h ../Core/Inc/hsensor.h ../Core/Inc/tsensor.h \
- ../Core/Inc/stm32l475e_iot01_psensor.h ../Core/Inc/lps22hb.h \
- ../Core/Inc/psensor.h ../Core/Inc/stm32l475e_iot01_tsensor.h \
- ../Core/Inc/stm32l475e_iot01_magneto.h ../Core/Inc/lis3mdl.h \
- ../Core/Inc/magneto.h ../Core/Inc/stm32l475e_iot01_accelero.h \
- ../Core/Inc/lsm6dsl.h ../Core/Inc/accelero.h ../Core/Inc/gyro.h \
- ../Core/Inc/hsensor.h ../Core/Inc/psensor.h ../Core/Inc/tsensor.h \
- ../Core/Inc/hts221.h ../Core/Inc/lps22hb.h ../Core/Inc/lis3mdl.h \
- ../Core/Inc/lsm6dsl.h
-../Core/Inc/main.h:
+ ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h
+../Core/Inc/stm32l475e_iot01.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal.h:
 ../Core/Inc/stm32l4xx_hal_conf.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_rcc.h:
@@ -66,26 +57,3 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_pwr_ex.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart.h:
 ../Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_hal_uart_ex.h:
-../Core/Inc/stm32l475e_iot01_hsensor.h:
-../Core/Inc/stm32l475e_iot01.h:
-../Core/Inc/hts221.h:
-../Core/Inc/hsensor.h:
-../Core/Inc/tsensor.h:
-../Core/Inc/stm32l475e_iot01_psensor.h:
-../Core/Inc/lps22hb.h:
-../Core/Inc/psensor.h:
-../Core/Inc/stm32l475e_iot01_tsensor.h:
-../Core/Inc/stm32l475e_iot01_magneto.h:
-../Core/Inc/lis3mdl.h:
-../Core/Inc/magneto.h:
-../Core/Inc/stm32l475e_iot01_accelero.h:
-../Core/Inc/lsm6dsl.h:
-../Core/Inc/accelero.h:
-../Core/Inc/gyro.h:
-../Core/Inc/hsensor.h:
-../Core/Inc/psensor.h:
-../Core/Inc/tsensor.h:
-../Core/Inc/hts221.h:
-../Core/Inc/lps22hb.h:
-../Core/Inc/lis3mdl.h:
-../Core/Inc/lsm6dsl.h:

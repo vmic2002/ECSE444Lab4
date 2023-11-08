@@ -93,7 +93,7 @@ uint8_t HTS221_H_ReadID(uint16_t DeviceAddr)
   uint8_t ctrl = 0x00;
  
   /* IO interface initialization */
-  SENSOR_IO_Init(); 
+  SENSOR_IO_Init();
   
   /* Read value at Who am I register address */
   ctrl = SENSOR_IO_Read(DeviceAddr, HTS221_WHO_AM_I_REG);
