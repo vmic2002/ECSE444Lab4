@@ -74,6 +74,7 @@ UART_HandleTypeDef huart1;
 osThreadId ReadSensorTaskHandle;
 osThreadId UARTTransmitterHandle;
 osThreadId Button_SensorHandle;
+osThreadId SensorDataFlashHandle;
 /* USER CODE BEGIN PV */
 
 float humidity, pressure;
@@ -86,12 +87,29 @@ int pressed = 0;//0 -> not pressed, 1 -> pressed
 int sensorOutput = 0;//to decide which sensor to display
 
 char buffer[40];
-int transmitted = 0; //1 if data already transmitted using UART
+int transmitted = 1; //1 if data already transmitted using UART
 
 
-uint8_t* hum, press;
-uint8_t magn[3];
-uint8_t acc[3];
+uint8_t* hum;
+uint8_t* press;
+
+uint8_t* magn;
+uint8_t* acc;
+
+const int sampleRateSensorHz = 10;//in Hz -> osDelay(100);//100ms to sample at rate of 10Hz
+const int sampleRateSensorMs = 1000/sampleRateSensorHz;
+
+
+//FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 1024K
+const int FLASH_BASE_MEMORY = 134217728; //0x8000000;
+const int FLASH_MEMORY_SIZE = 1024000;
+uint32_t flashNextAvailableByte = FLASH_BASE_MEMORY;//pointer that keeps track of where to add to flash memory (like the stack pointer) (doesnt take into account that flash mem needs to be erased before written to)
+
+int sensorValsRead = 0;//==1 if and only if sensorVals have been read and all sensor vars updated
+
+
+int numBlocks = 2;//<=16 -> 16 total blocks in FLASH
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,9 +118,10 @@ static void MX_GPIO_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_QUADSPI_Init(void);
-void StartReadSensorTask(void const * argument);
+void ReadSensorVals(void const * argument);
 void StartUARTTransmitter(void const * argument);
 void StartButton_Sensor(void const * argument);
+void SaveSensorDataToFlash(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -158,16 +177,51 @@ int main(void)
 
 
 
+	//FROM DOC: ->>>Again, flash must be erased before it can be written.
 
 
-	/*float humidity, pressure;
-	int16_t magneto[3];//magneto is Pointer on 3 magnetometer values table with magneto[0] = X axis, magneto[1] = Y axis, magneto[2] = Z axis
+	//block == 64KB
 
-	int16_t accelero[3];//accelero Pointer on 3 angular accelerations table with accelero[0] = X axis, accelero[1] = Y axis, accelero[2] = Z axis
+	for (int i=0; i<numBlocks; i++) {
+		if (BSP_QSPI_Erase_Block((uint32_t) i*64000)!= QSPI_OK)
+			Error_Handler();
+		//erases numBlocks blocks from flash
+	}
 
 
-	int pressed = 0;//0 -> not pressed, 1 -> pressed
-	int sensorOutput = 0;//to decide which sensor to display*/
+
+
+
+	//------------TESTTTING-----------------------//
+
+
+
+	/*float humidity1 = BSP_HSENSOR_ReadHumidity();
+	float pressure1 = BSP_PSENSOR_ReadPressure();
+
+
+	int* hum2;
+	 *hum2 = (int) humidity1;
+	char* temp = hum2;
+
+	uint8_t *hum1 = malloc(4*sizeof(uint8_t));
+
+	hum1[0] = temp[0];
+	hum1[1] = temp[1];
+	hum1[2] = temp[2];
+	hum1[3] = temp[3];
+	//uint8_t *press1 = malloc(4*sizeof(uint8_t));
+	//hum1 = (uint8_t*)(&humidity1);
+	//press1 = (uint8_t*)(&pressure1);
+
+
+	sprintf(buffer, "!!!!!!!!!: %d %d %d %d", hum1[0], hum1[1], hum1[2], hum1[3]);
+
+	HAL_UART_Transmit(&huart1,(uint8_t*) buffer, strlen(buffer), 1000);
+	 */
+
+	//-------------TESTTTING-----------//
+
 	/* USER CODE END 2 */
 
 	/* USER CODE BEGIN RTOS_MUTEX */
@@ -188,7 +242,7 @@ int main(void)
 
 	/* Create the thread(s) */
 	/* definition and creation of ReadSensorTask */
-	osThreadDef(ReadSensorTask, StartReadSensorTask, osPriorityNormal, 0, 128);
+	osThreadDef(ReadSensorTask, ReadSensorVals, osPriorityNormal, 0, 128);
 	ReadSensorTaskHandle = osThreadCreate(osThread(ReadSensorTask), NULL);
 
 	/* definition and creation of UARTTransmitter */
@@ -198,6 +252,10 @@ int main(void)
 	/* definition and creation of Button_Sensor */
 	osThreadDef(Button_Sensor, StartButton_Sensor, osPriorityIdle, 0, 128);
 	Button_SensorHandle = osThreadCreate(osThread(Button_Sensor), NULL);
+
+	/* definition and creation of SensorDataFlash */
+	osThreadDef(SensorDataFlash, SaveSensorDataToFlash, osPriorityIdle, 0, 128);
+	SensorDataFlashHandle = osThreadCreate(osThread(SensorDataFlash), NULL);
 
 	/* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
@@ -477,72 +535,51 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartReadSensorTask */
+/* USER CODE BEGIN Header_ReadSensorVals */
 /**
- * @brief  Function implementing the readSensorTask thread.
+ * @brief  Function implementing the ReadSensorTask thread.
  * @param  argument: Not used
  * @retval None
  */
-/* USER CODE END Header_StartReadSensorTask */
-void StartReadSensorTask(void const * argument)
+/* USER CODE END Header_ReadSensorVals */
+void ReadSensorVals(void const * argument)
 {
 	/* USER CODE BEGIN 5 */
 	/* Infinite loop */
 	for(;;)
 	{
-		osDelay(100);//100ms to sample at rate of 10Hz
+		osDelay(sampleRateSensorMs);
+
+		if (!sensorValsRead) {
+
+			humidity = BSP_HSENSOR_ReadHumidity();
+			pressure = BSP_PSENSOR_ReadPressure();
+			BSP_MAGNETO_GetXYZ(magneto);
+			BSP_ACCELERO_AccGetXYZ(accelero);
 
 
 
-		humidity = BSP_HSENSOR_ReadHumidity();
-		pressure = BSP_PSENSOR_ReadPressure();
-		BSP_MAGNETO_GetXYZ(magneto);
-		BSP_ACCELERO_AccGetXYZ(accelero);
+			hum = &humidity;
+			press = &pressure;
 
+			magn = magneto;
 
+			acc = accelero;
 
+			/*
+			 *hum = (uint8_t) humidity;
+			 *press = (uint8_t) pressure;
 
+			magn[0] = (uint8_t) magneto[0];
+			magn[1] = (uint8_t) magneto[1];
+			magn[2] = (uint8_t) magneto[2];
 
-		*hum = (uint8_t) humidity;
-		*press = (uint8_t) pressure;
-
-
-		magn[0] = (uint8_t) magneto[0];
-		magn[1] = (uint8_t) magneto[1];
-		magn[2] = (uint8_t) magneto[2];
-
-
-		acc[0] = (uint8_t) accelero[0];
-		acc[1] = (uint8_t) accelero[1];
-		acc[2] = (uint8_t) accelero[2];
-
-		//dont touch code above should be fine
-
-
-		//TODO NEED TO FIGURE OUT WHAT READADDR should be
-
-		//TODO ALSO NEED TO FIGURE OUT WHEN TO CALL //BSP_QSPI_Erase_Block(uint32_t BlockAddress);
-		//FROM DOC: ->>>Again, flash must be erased before it can be written.
-		//maybe need to erase multiple blocks BEFORE MAIN FUNC AND BEFORE THREADS GET CALLED LIKE AFTER USER CODE BEGIN 2 AFTER 	BSP_QSPI_Init();
-
-		//TODO ACTUALLY NEED TO WRITE TO FLASH IN A DIFFERENT task/thread, this thread is ONLY FOR READING SENSOR VALS AND UPDATING hum, press, magn, and acc
-		//TODO IN A DIFFERENT THREAD/TASK, NEED TO WRITE hum, press, magn, acc INTO FLASH
-		//CODE BELOW IN DIFFERENT THREAD:
-		/*--------------IN DIFFERENT TASK----------------*/
-
-		if (BSP_QSPI_Write(hum, readAddr, (uint32_t) sizeof(uint8_t)) != QSPI_OK)
-			Error_Handler();
-
-		if (BSP_QSPI_Write(press, readAddr, (uint32_t) sizeof(uint8_t)) != QSPI_OK)
-			Error_Handler();
-
-		if (BSP_QSPI_Write(magn, readAddr, (uint32_t) 3*sizeof(uint8_t)) != QSPI_OK)
-			Error_Handler();
-
-		if (BSP_QSPI_Write(acc, readAddr, (uint32_t) 3*sizeof(uint8_t)) != QSPI_OK)
-			Error_Handler();
-		/*--------------------IN DIFFERENT TASK----------------------*/
-
+			acc[0] = (uint8_t) accelero[0];
+			acc[1] = (uint8_t) accelero[1];
+			acc[2] = (uint8_t) accelero[2];
+			 */
+			sensorValsRead = 1;
+		}
 	}
 	/* USER CODE END 5 */
 }
@@ -561,15 +598,11 @@ void StartUARTTransmitter(void const * argument)
 	for(;;)
 	{
 		osDelay(50);
-
-
-
 		if (!transmitted) {
+			//print to terminal
 			HAL_UART_Transmit(&huart1,(uint8_t*) buffer, strlen(buffer), 1000);
 			transmitted = 1;
 		}
-
-
 	}
 	/* USER CODE END StartUARTTransmitter */
 }
@@ -588,9 +621,6 @@ void StartButton_Sensor(void const * argument)
 	for(;;)
 	{
 		osDelay(25);//check button pressed every 1/40 second
-
-
-
 		if (HAL_GPIO_ReadPin(BUTTON_GPIO_Port, BUTTON_Pin) == GPIO_PIN_SET) {
 			//if button released
 			if (pressed) pressed = 0;
@@ -616,6 +646,58 @@ void StartButton_Sensor(void const * argument)
 		}
 	}
 	/* USER CODE END StartButton_Sensor */
+}
+
+/* USER CODE BEGIN Header_SaveSensorDataToFlash */
+/**
+ * @brief Function implementing the SensorDataFlash thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_SaveSensorDataToFlash */
+void SaveSensorDataToFlash(void const * argument)
+{
+	/* USER CODE BEGIN SaveSensorDataToFlash */
+	/* Infinite loop */
+	for(;;)
+	{
+		osDelay(sampleRateSensorMs);
+
+		if (sensorValsRead) {
+			uint32_t sizeUint8_t = (uint32_t) sizeof(uint8_t);
+
+			//adding total of 20*sizeUint8_t to flash per iteration
+
+
+
+			//if (flashNextAvailableByte+20*sizeUint8_t>=FLASH_BASE_MEMORY+FLASH_MEMORY_SIZE || flashNextAvailableByte+20*sizeUint8_t>=64000*numBlocks){break;}
+
+
+
+
+			//if (BSP_QSPI_Write(hum, flashNextAvailableByte, 4*sizeUint8_t) != QSPI_OK)
+		//		Error_Handler();
+
+/*
+
+			if (BSP_QSPI_Write(press, (uint32_t) (flashNextAvailableByte+4*sizeUint8_t), 4*sizeUint8_t) != QSPI_OK)
+				Error_Handler();
+
+			if (BSP_QSPI_Write(magn, (uint32_t) (flashNextAvailableByte+8*sizeUint8_t), (uint32_t) 6*sizeUint8_t) != QSPI_OK)
+				Error_Handler();
+
+			if (BSP_QSPI_Write(acc, (uint32_t) (flashNextAvailableByte+14*sizeUint8_t), (uint32_t) 6*sizeUint8_t) != QSPI_OK)
+				Error_Handler();
+*/
+			//flashNextAvailableByte+= 20*sizeUint8_t;
+
+			sensorValsRead = 0;
+
+		}
+
+
+	}
+	/* USER CODE END SaveSensorDataToFlash */
 }
 
 /**
